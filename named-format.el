@@ -59,7 +59,6 @@
           key)
       (while (re-search-forward "[$][{]\\(\\w+\\)}" nil t)
         (setq key (match-string 1))
-        (print key)
         (setq values
               (append
                values
