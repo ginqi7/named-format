@@ -49,30 +49,96 @@
 
 ;;; Code:
 
-(defun named-format (template name-value-alist)
-  "Format TEMPLATE by replacing named placeholder with NAME-VALUE-ALIST."
+(defvar named-format-match-regex "[$][{]\\(.*?\\)}")
+
+(defun named-format-sql (template name-value-list)
+  "For sql format TEMPLATE NAME-VALUE-LIST."
   (interactive)
+  (named-format--1
+   template
+   name-value-list
+   "?"))
+
+(defun named-format--1 (template name-value-list placeholder)
+  "Generate named format STRING and VALUES.
+TEMPLATE is string template.
+NAME-VALUE-LIST is name value list.
+PLACEHOLDER is placeholder for replace."
   (with-temp-buffer
     (insert template)
     (goto-char (point-min))
     (let ((values '())
           key)
-      (while (re-search-forward "[$][{]\\(\\w+\\)}" nil t)
+      (while (re-search-forward
+              named-format-match-regex
+              nil
+              t)
         (setq key (match-string 1))
         (setq values
               (append
                values
-               (list
-                (alist-get key name-value-alist nil nil 'string-equal))))
-        (replace-match "%s"))
-      (apply 'format (buffer-string) values))))
+               (named-format--get-value
+                key
+                name-value-list)))
+        (replace-match placeholder))
+      (list
+       (substring-no-properties
+        (buffer-string))
+       values))))
+
+(defun named-format (template name-value-list)
+  "Format TEMPLATE by replacing named placeholder with NAME-VALUE-LIST.
+Support alist or plist."
+  (interactive)
+  (let* ((string-with-values (named-format--1
+                              template
+                              name-value-list
+                              "%s"))
+         (string (car string-with-values))
+         (values (cadr string-with-values)))
+    (apply 'format string values)))
+
+
+(defun named-format--get-value (key key-value-list)
+  "Alist (KEY KEY-VALUE-LIST)."
+  (let ((value (plist-get
+                key-value-list
+                (intern (format ":%s" key)))))
+    (if (not value)
+        (setq value
+              (alist-get
+               key
+               key-value-list
+               nil
+               nil
+               'string-equal)))
+    (list value)))
 
 (defun named-format-test ()
   "Test function `named-format'."
-  (let ((name-value-alist '(("name" . "workd")))
-        )
+  (let ((name-value-alist '(("name" . "hello")
+                            ("name2" . "workd"))))
     (print
-     (named-format "Hello ${name}, I am ${name2}" name-value-alist))))
+     (named-format
+      "Hello ${name}, I am ${name2}"
+      name-value-alist))))
+
+(defun named-format-test01 ()
+  "Test function `named-format'."
+  (let ((name-value-plist '(:name "hello" :name2 "word")))
+    (print
+     (named-format
+      "Hello ${name}, I am ${name2}"
+      name-value-plist))))
+
+(defun named-format-test02 ()
+  "Test function `named-format-sql'."
+  (let ((name-value-plist '(:name "hello" :name2 "word")))
+    (print
+     (named-format-sql
+      "Hello ${name}, I am ${name2}"
+      name-value-plist))))
+
 
 (provide 'named-format)
 ;;; named-format.el ends here
